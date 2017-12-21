@@ -8,7 +8,6 @@ import java.util.Map;
 
 import com.netflix.appinfo.HealthCheckHandler;
 import com.netflix.appinfo.InstanceInfo;
-import com.netflix.discovery.EurekaClient;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.beans.BeanUtils;
@@ -69,14 +68,6 @@ public class EurekaStubsRegistrar implements StubsRegistrar {
 					+ instance.getInstanceId() + "]");
 			EurekaRegistration registration = EurekaRegistration.builder(instance)
 					.with(this.eurekaClientConfigBean, this.context)
-					.with(this.context.getBean(EurekaClient.class))
-					.with(new HealthCheckHandler() {
-						@Override
-						public InstanceInfo.InstanceStatus getStatus(
-								InstanceInfo.InstanceStatus currentStatus) {
-							return InstanceInfo.InstanceStatus.UP;
-						}
-					})
 					.build();
 			this.registrations.add(registration);
 			try {

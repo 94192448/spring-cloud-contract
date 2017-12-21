@@ -6,6 +6,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import com.netflix.appinfo.ApplicationInfoManager;
 import com.netflix.appinfo.HealthCheckHandler;
 import com.netflix.appinfo.InstanceInfo;
 import com.netflix.discovery.EurekaClient;
@@ -65,10 +66,12 @@ public class EurekaStubsRegistrar implements StubsRegistrar {
 		for (Map.Entry<StubConfiguration, Integer> entry : activeStubs.entrySet()) {
 			EurekaInstanceConfigBean instance = registration(entry);
 			log.info("Will register stub in Eureka " + "[" + instance.getAppname() + ", "
-					+ instance.getHostname() + ", " + instance.getNonSecurePort() + "]");
+					+ instance.getHostname() + ", " + instance.getNonSecurePort() + ", "
+					+ instance.getInstanceId() + "]");
 			EurekaRegistration registration = EurekaRegistration.builder(instance)
 					.with(this.eurekaClientConfigBean, this.context)
 					.with(this.context.getBean(EurekaClient.class))
+					.with(this.context.getBean(ApplicationInfoManager.class))
 					.with(new HealthCheckHandler() {
 						@Override
 						public InstanceInfo.InstanceStatus getStatus(
@@ -96,14 +99,14 @@ public class EurekaStubsRegistrar implements StubsRegistrar {
 		String appName = name(entry.getKey());
 		config.setInstanceEnabledOnit(true);
 		InetAddress address = this.inetUtils.findFirstNonLoopbackAddress();
-		config.setIpAddress(address.getHostAddress());
+		//config.setIpAddress(address.getHostAddress());
 		config.setHostname(StringUtils.hasText(hostName(entry)) ?
 				hostName(entry) : address.getHostName());
 		config.setAppname(appName);
 		config.setVirtualHostName(appName);
 		config.setSecureVirtualHostName(appName);
 		config.setNonSecurePort(port(entry));
-		config.setInstanceId(entry.getKey().getArtifactId());
+		config.setInstanceId(appName + ":" + entry.getKey().getArtifactId());
 		return config;
 	}
 

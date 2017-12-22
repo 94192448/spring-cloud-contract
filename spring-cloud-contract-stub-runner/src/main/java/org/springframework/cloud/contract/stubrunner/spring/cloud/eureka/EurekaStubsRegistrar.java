@@ -8,18 +8,25 @@ import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.springframework.beans.BeanUtils;
+import org.springframework.beans.BeansException;
 import org.springframework.cloud.client.serviceregistry.ServiceRegistry;
 import org.springframework.cloud.commons.util.InetUtils;
 import org.springframework.cloud.contract.stubrunner.StubConfiguration;
 import org.springframework.cloud.contract.stubrunner.StubRunning;
 import org.springframework.cloud.contract.stubrunner.spring.cloud.StubMapperProperties;
 import org.springframework.cloud.contract.stubrunner.spring.cloud.StubsRegistrar;
+import org.springframework.cloud.netflix.eureka.CloudEurekaClient;
 import org.springframework.cloud.netflix.eureka.EurekaClientConfigBean;
 import org.springframework.cloud.netflix.eureka.EurekaInstanceConfigBean;
+import org.springframework.cloud.netflix.eureka.InstanceInfoFactory;
 import org.springframework.cloud.netflix.eureka.serviceregistry.EurekaRegistration;
 import org.springframework.context.ApplicationContext;
 import org.springframework.util.StringUtils;
+
+import com.netflix.appinfo.ApplicationInfoManager;
+import com.netflix.appinfo.InstanceInfo;
+import com.netflix.discovery.AbstractDiscoveryClientOptionalArgs;
+import com.netflix.discovery.EurekaClient;
 
 /**
  * Registers all stubs in Eureka Service Discovery
@@ -64,8 +71,13 @@ public class EurekaStubsRegistrar implements StubsRegistrar {
 			log.info("Will register stub in Eureka " + "[" + instance.getAppname() + ", "
 					+ instance.getHostname() + ", " + instance.getNonSecurePort() + ", "
 					+ instance.getInstanceId() + "]");
+			InstanceInfo instanceInfo = new InstanceInfoFactory().create(instance);
+			ApplicationInfoManager applicationInfoManager = new ApplicationInfoManager(instance, instanceInfo);
+			AbstractDiscoveryClientOptionalArgs args = args();
+			EurekaClient client = new CloudEurekaClient(applicationInfoManager, this.eurekaClientConfigBean, args, this.context);
 			EurekaRegistration registration = EurekaRegistration.builder(instance)
 					.with(this.eurekaClientConfigBean, this.context)
+					.with(client)
 					.build();
 			this.registrations.add(registration);
 			try {
@@ -80,9 +92,17 @@ public class EurekaStubsRegistrar implements StubsRegistrar {
 		}
 	}
 
+	private AbstractDiscoveryClientOptionalArgs args() {
+		try {
+			return this.context
+					.getBean(AbstractDiscoveryClientOptionalArgs.class);
+		} catch (BeansException e) {
+			return null;
+		}
+	}
+
 	private EurekaInstanceConfigBean registration(Map.Entry<StubConfiguration, Integer> entry) {
 		EurekaInstanceConfigBean config = new EurekaInstanceConfigBean(this.inetUtils);
-		BeanUtils.copyProperties(this.eurekaInstanceConfigBean, config);
 		String appName = name(entry.getKey());
 		config.setInstanceEnabledOnit(true);
 		InetAddress address = this.inetUtils.findFirstNonLoopbackAddress();
@@ -92,8 +112,10 @@ public class EurekaStubsRegistrar implements StubsRegistrar {
 		config.setAppname(appName);
 		config.setVirtualHostName(appName);
 		config.setSecureVirtualHostName(appName);
-		config.setNonSecurePort(port(entry));
-		config.setInstanceId(address.getHostAddress() + ":" + entry.getKey().getArtifactId());
+		int port = port(entry);
+		config.setNonSecurePort(port);
+		config.setInstanceId(address.getHostAddress() + ":" + entry.getKey().getArtifactId() + ":" + port);
+		config.setLeaseRenewalIntervalInSeconds(1);
 		return config;
 	}
 
